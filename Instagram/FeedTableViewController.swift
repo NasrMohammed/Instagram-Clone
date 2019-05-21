@@ -7,40 +7,104 @@
 //
 
 import UIKit
+import Parse
 
 class FeedTableViewController: UITableViewController {
 
+    var users = [String: String]()
+    var comments = [String]()
+    var usernames = [String]()
+    var imagefiles = [PFFileObject]()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Uncomment the following line to preserve selection between presentations
-        // self.clearsSelectionOnViewWillAppear = false
+       let query = PFUser.query()
 
-        // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-        // self.navigationItem.rightBarButtonItem = self.editButtonItem
+        query?.whereKey("username", notEqualTo: PFUser.current()?.username)
+
+        query?.findObjectsInBackground(block: { (objects, error) in
+            if let users = objects {
+                for object in users {
+                    if let user = object as? PFUser {
+                        self.users[user.objectId!] = user.username!
+                    }
+                }
+            }
+            let getFollowedUsersQuery = PFQuery(className: "Following")
+
+            getFollowedUsersQuery.whereKey("follower", equalTo: PFUser.current()?.objectId)
+
+            getFollowedUsersQuery.findObjectsInBackground(block: { (objects, error) in
+                if let followers = objects {
+                    for follower in followers {
+                        if let followedUser = follower["following"] {
+                            let query = PFQuery(className: "Post")
+                            query.whereKey("userid", equalTo: followedUser)
+                            
+                            query.findObjectsInBackground(block: { (objects, error) in
+                                if let posts = objects {
+                                    for post in posts {
+                                       self.comments.append(post["message"] as! String)
+
+                                        self.usernames.append(self.users[post["userid"] as! String]!)
+
+                                        self.imagefiles.append(post["imageFile"] as! PFFileObject)
+
+                                        self.tableView.reloadData()
+                                    }
+                                }
+                            })
+                        }
+                    }
+                }
+            })
+
+        })
+        
     }
 
     // MARK: - Table view data source
 
     override func numberOfSections(in tableView: UITableView) -> Int {
         // #warning Incomplete implementation, return the number of sections
-        return 0
+        return 1
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         // #warning Incomplete implementation, return the number of rows
-        return 0
+        return  comments.count
     }
 
-    /*
+    
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "reuseIdentifier", for: indexPath)
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath) as! FeedTableViewCell
 
         // Configure the cell...
+        self.tableView.rowHeight = 280
+        
+        imagefiles[indexPath.row].getDataInBackground { (data, error) in
+
+            if let imageData = data {
+
+                if let imageToDisplay = UIImage(data: imageData) {
+
+                    cell.postedImage.image = imageToDisplay
+
+                }
+
+            }
+
+        }
+       // cell.postedImage.image = UIImage(named: "weather.jpeg")
+        
+        cell.comment.text =  comments[indexPath.row]
+        
+        cell.userInfo.text =  usernames[indexPath.row]
 
         return cell
     }
-    */
+    
 
     /*
     // Override to support conditional editing of the table view.
